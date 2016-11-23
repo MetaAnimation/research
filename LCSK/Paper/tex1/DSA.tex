@@ -1,0 +1,60 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{axis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=4,
+xlabel= Data size $(10^5)$,
+ylabel= URZA\_R,
+ymax = 1.3,
+xtick={0.1,1,3,5,7,9}
+]
+\addplot table[x=k,y=time] {
+k time
+0.1	1.092008986
+1	1.093428691
+3	1.096937101
+5	1.08600918
+7	1.104298469
+9	1.119690352
+};
+\addplot table[x=k,y=time] {
+k time
+0.1	1.092008986
+1	1.093428691
+3	1.096937101
+5	1.06600918
+7	1.104298469
+9	1.119690352
+};
+\addplot table[x=k,y=time] {
+k time
+0.1	1
+1	1
+3	1
+5	1
+7	1
+9	1
+};
+
+\legend{MaxMargin,SUM-A,MergeList}
+\end{axis}
+\end{tikzpicture}
+\end{document}

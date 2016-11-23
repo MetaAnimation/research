@@ -1,0 +1,943 @@
+\documentclass[3p]{elsarticle}
+
+%\usepackage{graphicx}
+\usepackage{balance}  % for  \balance command ON LAST PAGE  (only there!)
+\usepackage{accents}
+\usepackage{graphicx}
+\usepackage{subfigure}
+%\usepackage{graphicx,floatrow}
+%\usepackage{tabularx}
+%\usepackage{flafter}
+%used to control the table
+%\usepackage{multirow}
+
+%used to adjust the space of item
+\usepackage{enumitem}
+\usepackage[ruled,vlined,boxed,linesnumbered,commentsnumbered]{algorithm2e}
+\usepackage{lineno,hyperref}
+%\usepackage[]{caption2}
+\usepackage{caption}
+
+%\renewcommand{\captionlabeldelim}{.}
+\modulolinenumbers[5]
+
+
+\setenumerate[1]{itemsep=0pt,partopsep=0pt,parsep=\parskip,topsep=5pt}
+\setitemize[1]{itemsep=0pt,partopsep=0pt,parsep=\parskip,topsep=5pt}
+\setdescription{itemsep=0pt,partopsep=0pt,parsep=\parskip,topsep=5pt}
+
+%used to add item
+
+%\newtheorem{thm}{Theorem}
+%\newtheorem{lem}{Lemma}
+%\newdefinition{definition}{Definition}
+%\newproof{pot}{Proof}
+\renewcommand{\figurename}{Fig.}
+\renewcommand{\labelitemii}{$\bullet$}
+\newtheorem{thm}{Theorem}
+\newtheorem{lem}{Lemma}
+\newdefinition{definition}{Definition}
+\newproof{pot}{Proof}
+\journal{Journal of \LaTeX\ Templates}
+
+
+\begin{document}
+% ****************** TITLE ****************************************
+\begin{frontmatter}
+%\title{Collective Spatial Keyword Queries with Weight Coverage}
+\title{Level-aware Collective Spatial Keyword Queries}
+
+%\numberofauthors{3} %  in this sample file, there are a *total*
+% of EIGHT authors. SIX appear on the 'first-page' (for formatting
+% reasons) and the remaining two appear in the \additionalauthors section.
+\author{Pengfei Zhang$^a$}
+%\address{Zhejiang University, China}
+\ead{zpf\_2013zb@zju.edu.cn}
+
+\author{Huaizhong Lin$^{a,}$\corref{cor1}}
+%\address[rvt]{Zhejiang University, China}
+\ead{linhz@zju.edu.cn}
+
+\author{Bin Yao$^b$\corref{cor2}}
+%\address{Zhejiang University, China}
+\ead{yaobin@cs.sjtu.edu.cn}
+
+\author{Dongming Lu$^a$\corref{cor2}}
+%\address{Zhejiang University, China}
+\ead{ldm@zju.edu.cn}
+
+\cortext[cor1]{Corresponding author.}
+\fntext[f1]{This manuscript is the authors' original work and has not been published nor has it been submitted simultaneously elsewhere.}
+\fntext[f2]{ All authors have checked the manuscript and have agreed to the submission. }
+
+
+\address{$^a$College of Computer Science and Technology, Zhejiang University, Hangzhou, China.}
+\address{$^b$Department of Computer Science and Engineering, Shanghai Jiao Tong University, Shanghai, China.}
+%\linenumbers
+
+\begin{abstract}
+The collective spatial keyword query (CoSKQ), which takes a location and a set of keywords as arguments, finds a group of objects that collectively satisfy the query and achieve the smallest cost. However, few studies concern the \textit{keyword level} (e.g., the level of hotels), which is of critical importance for decision support. Motivated by this, we study a novel query paradigm, namely \textit{Level-aware Collective Spatial Keyword} (LCSK) query. The LCSK query asks for a group of objects that cover the query keywords collectively with a threshold constraint and minimize the cost function, which takes into account both the cost of objects and the spatial distance. In our settings, each keyword that appears in the textual description of objects is associated with a level for capturing the feature of keyword.
+
+We prove the LCSK query is NP-hard, and devise exact algorithm as well as approximate algorithm with provable approximation bound to this problem. The proposed exact algorithm, namely MergeList, explores the candidate space progressively with several pruning strategies, which is based on the keyword hash table index structure. Unfortunately, this approach is not scalable to large datasets. We thus develop an approximate algorithm called MaxMargin. It finds the answer by traversing the proposed LIR-tree in the best-first fashion. Moreover, two optimizing strategies are used to improve the query performance. The experiments on real and synthetic datasets verify that the proposed approximate algorithm runs much faster than the competitor with desired accuracy.
+\end{abstract}
+
+\begin{keyword}
+Collective spatial keyword query \sep Keyword level \sep Branch and bound strategy \sep Triggered update strategy
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers
+
+\section{Introduction}
+Spatial database has been studied for decades as it supports many applications from people's daily life to scientific research \cite{bobed2016querygen,cao2014content,chen2015standard,hao2015multiagent,lai2014multilinear,lin2015game,tan2015adaptive,xu2015large}. Recently, the keyword search has been combined with spatial queries to enhance location-based services such as Baidu Lvyou and Google Earth. Previous works on spatial keyword queries can be roughly classified into two categories based on the answer granularity: (1) some proposals find individual objects. Typically, given a location and a set of keywords as arguments, this type of query \cite{cong2009efficient,  cong2012efficient, de2008keyword, shang2012user} retrieves individual objects that each can cover all query keywords, and (2) others ask for a group of objects. In a wide spectrum of applications, whereas multiple objects are required to satisfy the user's needs (expressed by keywords) collectively. Toward this goal, $m$CK \cite{zhang2009keyword, zhang2010locating}, CoSKQ \cite{cao2011collective, long2013collective}, BKC \cite{deng2015best} and SGK \cite{cao2015efficient} are investigated. To the best of our knowledge, few studies consider the \textit{keyword level}. In real applications, we can use the keyword level to capture the level of tourist attractions, hotels or the rescue ability of equipments, which is increasingly important for users to make decisions.
+
+In this work, we study a novel query paradigm called Level-aware Collective Spatial Keyword (LCSK) query. We enhance the collective spatial keyword queries (CoSKQ) from the following two aspects. First, we introduce the \textit{level vector} for the objects in the database $O$. Each object $o \in O$ is associated with an integer level vector, denoted by $o.\nu$. The $i$th element of a level vector, i.e., $o.\nu^i$, represents the level of $i$th keyword in $o.\omega$, i.e., $o.\omega^i$. We denote by $o.\omega$ the associated keywords with $o$. Second, we introduce a normalized \textit{weight vector} into the query definition for capturing the user-specified weights assigned to different levels. Similar to \cite{chen2014efficient}, we define our cost function, namely \textit{cost distance}, as a combination of the spatial distance and the cost of objects (will be explained later). The LCSK query has numerous real applications such as resource scheduling and emergency rescue. Next, we present an example of the emergency rescue task.
+
+\begin{figure}
+\centering
+\includegraphics[width=3.5in,height=1in]{motivation}
+\caption{Example of the LCSK query} \label{F1}
+\end{figure}
+
+\textbf{Example 1}. As illustrated in Fig. \ref{F1}, we assume that the query point $q$ is an earthquake point. There are four rescue teams $o_1$, $o_2$, $o_3$ and $o_4$ having necessary rescue equipments, namely $t_1, t_2,...,t_5$. The \textit{level vector} captures the level of equipments that are associated with teams, which can be used to measure the rescue ability. Usually, the higher the level, the higher the rescue ability. The $cost$ denotes the overhead of performing the rescue by the corresponding team, and $distance$ denotes the Euclidean distance between $q$ and the rescue team. In such a scenario, we aim to find multiple teams that can together achieve the required rescue ability and have the smallest cost.
+
+To address the above problem, we issue a query $q=(\ell,\omega,W,\theta)$, where $\ell$ denotes the location of $q$ and $\omega=\{t_1,t_2\}$ captures the required rescue equipments. The normalized weight vector $W=(0.1,0.15,0.2,0.25,0.3)$ indicates the rescue ability of equipments with different levels. As an example, the level of $t_1$ w.r.t. $o_1$ is 4, and thus the corresponding rescue ability is $W[4]=0.25$. Then, $\theta=0.5$ denotes the desired rescue ability for each required equipment. That is, a group of teams whose rescue abilities are not less than 0.5 for each required equipment are called for. In this case, we deliver the group $\{o_1,o_2\}$ as the answer, because it offers the desired rescue ability for each required equipment and has the smallest cost distance. Specifically, the rescue ability of $t_1$ and $t_2$ contributed by $\{o_1,o_2\}$ are $W[4]+W[5]=0.55$ and $W[5]+W[4]=0.55$, which are larger than the given threshold 0.5. Moreover, the cost distance of $\{o_1,o_2\}$ is $0.1*10+0.1*8=1.8$.
+
+
+More formally, given a spatial database $O$, and an LCSK query $q=(\ell,\omega,W,\theta)$, where $\ell$ is the query location and $\omega$ is the set of query keywords. $W$ is a normalized weight vector and $\theta$ is a threshold. The LCSK query is to retrieve a group $G$ of objects such that satisfy the following two conditions:
+\begin{itemize}
+    \item $\forall t \in q.\omega$, the coverage weight of $t$ by $G$ is not less than $q.\theta$;
+    \item $G$ has the smallest cost distance among those groups that meet the above condition.
+\end{itemize}
+
+We prove the LCSK query is NP-hard by the reduction from the weighted set cover (WSC) problem. We devise both the exact algorithm and approximate algorithm to this problem. The proposed exact algorithm, namely MergeList, performs the query by searching the candidate space progressively, which is based on the keyword hash table index structure. Specifically, the candidate space contains all promising answers, and we use several strategies to prune the candidate space. Though equipped with several pruning strategies, MergeList is not scalable to large datasets due to the complexity of our problem. We thus develop an approximate algorithm called MaxMargin with provable approximation bound. MaxMargin finds the answer by traversing the LIR-tree in the best-first fashion. In particular, the LIR-tree augments each inverted file of IR-tree with additional information, i.e., the level of keywords and the cost of objects. Two effective optimizing strategies, namely the \textit{branch and bound strategy} (BBS) and the \textit{triggered update strategy} (TUS) are proposed to further improve the performance of MaxMargin.
+
+To summarize, we make the following contributions:
+\begin{itemize}
+    \item We formally define the LCSK query, which is to find a group of objects such that collectively cover the query keywords with a threshold constraint and have the smallest cost distance. We then theoretically prove this problem is NP-hard.
+    \item We develop an exact algorithm called MergeList on the top of keyword hash table index structure. Furthermore, we propose the LIR-tree, which is extended from IR-tree. Based on the LIR-tree, we devise an approximate algorithm called MaxMargin that finds the answer using the best-first strategy. To further facilitate the query processing, two optimizing strategies, namely BBS and TUS, are adopted by MaxMargin.
+    \item We conduct comprehensive experiments on real and synthetic datasets to verify the performance of our proposed algorithms.
+\end{itemize}
+
+The rest of this paper is organized as follows. Section 2 reviews the related work. Section 3 formally defines the problem and proves the LCSK query is NP-hard. We elaborate the exact algorithm in Section 4 and the approximate algorithm in Section 5, respectively. Finally, we report on empirical studies in Section 6 and offer conclusions and research directions in Section 7.
+
+
+\section{Related Work}
+
+\subsection{Conventional Spatial Keyword Queries}
+The conventional spatial keyword queries \cite{cong2009efficient, de2008keyword} take a location and a set of keywords as arguments, and ask for the objects that each can cover all the query keywords. There are lots of efforts on the conventional spatial keyword queries. We proceed to review them.
+
+\textit{Combining with top-k queries}. The top-$k$ spatial keyword queries return $k$ objects with the highest ranking scores measured by a ranking function, which considers the spatial proximity and the textual relevance. To answer the query efficiently, various index structures are proposed such as IR-tree \cite{cong2009efficient, li2011ir}, SKI \cite{cary2010efficient}, S2I \cite{rocha2011efficient, rocha2012top}, IL-Quadtree \cite{zhang2016inverted}. Cong et al. \cite{cong2012efficient} use the B$^{ck}$-tree to facilitate the query processing for the trajectory data. Wu et al. \cite{wu2012joint} handle the joint top-$k$ spatial keyword queries with the W-IR-Tree, which utilizes keyword partitioning and inverted bitmaps to organize the objects. Zhang et al. \cite{zhang2013scalable} show that I$^3$ outperforms IR-tree and S2I. Specifically, I$^3$ adopts the quadtree to hierarchically partition the data space into cells. Gao et al. \cite{gaoefficient} study the reverse top-$k$ boolean spatial keyword queries and use the count tree to maintain the shortest paths. Most recently, Chen et al. \cite{Chen2015Answering} develop an index-based method to answer the why not top-$k$ spatial keyword queries, which enable to modify the query for retrieving desired results. Wu et al. \cite{wu2015authentication} study the authentication of moving top-$k$ spatial keyword queries using the MIR-tree, which modifies the IR-tree by embedding a series of digests in each node of the tree.
+
+\textit{Combining with nearest neighbor queries}. The nearest neighbor (NN) queries \cite{sun2015efficient,Yu2015Scalable} are to retrieve the nearest object to one or a group of query points from the underlying database. By considering keywords, the spatial keyword nearest neighbor queries return the closest object to the query point among those objects that cover the query keywords. Recently, several variations are explored. To address the false hit problem of IR2-tree \cite{de2008keyword}, Tao et al. \cite{tao2014fast} propose the SI-index. It is actually a compressed version of inverted list using the gap-keeping technique. Lu et al. \cite{lu2011reverse} study the RST$k$NN query, finding objects that take a specific query object as one of their $k$ most spatial-textual similar objects. Jiang et al. \cite{jiang2015exact} study the $k$ nearest keyword ($k$-NK) query in the context of large networks. They develop memory-based and disk-based exact methods using the label technique.
+
+\textit{Combining with route queries}. The conventional route queries \cite{li2005trip} search the shortest route that starts at location $s$, passes through as least one object from each category in $C$ and ends at $t$. Approximate algorithms are proposed in \cite{li2005trip} for various applications. Lee et al. \cite{lee2016effective} propose an initialization method for the robot path planning based on the directed acyclic graph. Yao et al. \cite{yao2011multi} investigate the multi-approximate-keyword routing (MARK) query. MARK asks for the shortest route that covers at least one matching object per keyword with the similarity greater than the given threshold. The problem of keyword-aware optimal route (KOR) search is studied in \cite{cao2012keyword}. It retrieves the route that covers a set of given keywords, a specific budget constraint is satisfied, and an objective score of the route is optimal. Since the query is NP-hard, three approximate algorithms are developed. In the subsequent work \cite{cao2013kors}, they present the corresponding system. Cao et al. \cite{cao2014retrieving} are to find a length-constraint region (expressed by a connected subgraph of road networks) that best matches the query keywords. Approximate algorithms are developed to answer it due to the inherent complexity of this problem.
+
+
+It is clear that all these works are different from ours. Specifically, aforementioned works only return individual objects for satisfying users' needs. However, our query aims to find a group of objects that satisfy users' needs collectively. Thus, their methods cannot be used to solve our problem.
+
+\subsection{Collective Spatial Keyword Queries}
+The $m$-closed keywords ($m$CK) queries are studied in \cite{zhang2009keyword, zhang2010locating}. Given a query point constituted by a location and a set of keywords, $m$CK asks for a group of objects that together cover all keywords and have the minimum diameter. The diameter is defined to be the largest distance between any pair of objects in the group. Zhang et al. \cite{zhang2009keyword} answer the $m$CK query by traversing down the $bR^{*}$-tree in a depth-first manner. In addition, the priori-based search strategies are exploited to shrink the search space. Later, Zhang et al. \cite{zhang2010locating} investigate the $m$CK query with the web data. The bottom-up strategy is developed to find a candidate answer, which prunes unnecessary accesses significantly. To further facilitate the query processing, Guo et al. \cite{guo2015efficient} answer the $m$CK query approximately by searching the smallest diameter circle in which the final answer locates.
+
+Cao et al. \cite{cao2011collective} study the CoSKQ problem. First, they aim to minimize the sum of distances between the retrieved group of objects and query point. They develop a greedy method that finds the result by answering a sequence of partial queries progressively. In addition, an exact algorithm is proposed by exploiting the dynamic programming. Second, they investigate the cost function that considers both the inter-object distance and the distance between the object in the retrieved group and query point. A simple approximate algorithm is first proposed to address this problem. It retrieves the nearest object for each query keyword, and then merges them as the result set. Based on this method, another approximate method is developed by refining the retrieved group progressively. Finally, an exact algorithm is presented. Specifically, this exact algorithm first invokes the second approximate algorithm for deriving an upper bound, and then shrinks the search space with pruning strategies. Later, they extend this work by exploring other cost functions in \cite{cao2015efficient}. Long et al. \cite{long2013collective} study CoSKQ on two cost functions, namely the maximum sum cost and the diameter cost. With the distance owner-driven approach, they answer the query exactly and approximately.
+
+Recently, Gao et al. \cite{Gao2015Efficient} study CoSKQ on road networks based on the Connectivity-Clustered Access Method (CCAM) index. Skovsgaard et al. \cite{skovsgaard2015finding} propose to find top-$k$ disjoint groups of objects while considering the group density, distance to the query, and relevance to the query keywords. Efficient algorithms are presented based on the Group Extended R-Tree, which is extended from the R-tree with each node including compassed histograms. Deng et al. \cite{deng2015best} study the best keyword cover (BKC) query, which considers the keyword rating. To answer this query, keyword nearest neighbor expansion algorithm returns the local best solution with the highest score as the answer. Wang et al. \cite{wang2015ap} propose to explore the spatial keyword query over streaming data with the AP-tree. These works distinguish from ours, since they do not consider the level and have different query goals with ours.
+
+
+\section{Problem Statement}
+
+Let $O=\{o_1,...,o_n\}$ be a spatial database. Each object $o\in O$ is associated with a location $o.\ell$, a set of keywords $o.\omega$ and a level vector $o.\nu$ including $|o.\omega|$ elements. As mentioned, the $i$th element of $o.\nu$, i.e., $o.\nu^i$, represents the level of corresponding keyword in $o.\omega$, i.e., $o.\omega^i$. We denote \textit{keyword level} by \textit{level} and consider it as a positive integer hereafter. As with \cite{cao2015efficient}, we assume that each object $o$ has a positive cost, namely $cost(o)$, which plays a critical role in decision support. Consider, for example, $cost(o)$ can capture the user ratings of products. Intuitively, the higher the rating, the more people will compete for such products, which incurs higher costs.
+
+%symbol table and a |q.w| dimensions vector o.v with the ith element being the auxiliary information of ith keywords in o.w.
+\begin{table}
+\centering
+\caption{Summary of the notations} \label{T1}
+\begin{tabular}{|c|l|}
+%\caption{$MergeList$}
+\hline
+Notation & \hspace*{\stretch{1}}Explanation\hspace*{\stretch{1}} \\
+\hline
+$q$ & an LCSK query of the form:$(\ell,\omega,W,\theta)$\\
+\hline
+$O,o$ & the underlying database, an object in $O$ of the form: $(\ell,\omega,\nu)$\\
+\hline
+$RO_q$ & relevant objects to $q$ in $O$\\
+\hline
+$G$ & the answer (i.e., a group of objects) to $q$\\
+\hline
+$|S|$ & the cardinality of $S$\\
+\hline
+$cost(o)$ & the cost of an object $o$ \\
+\hline
+$cd(o,q)$ & the cost distance between $o$ and $q$\\
+\hline
+$cw(o,t)$ & coverage weight of $t$ by $o$\\
+\hline
+$cov(G,q)$ & coverage weight of $q$ by $G$ \\
+\hline
+KHT & keyword hash table index structure\\
+\hline
+LIR-tree & index structure extended from the IR-tree \\
+\hline
+$cr(e,q), cr$ & contribution ratio of the entry $e$ to $q$, the abbreviation of contribution ratio\\
+\hline
+$dcr_q^r(e)$ & dynamic contribution ratio of the entry $e$ to $q$ when $|G|=r$\\
+\hline
+$dcr$ & the abbreviation of dynamic contribution ratio\\
+\hline
+\end{tabular}
+\end{table}
+
+%\noindent
+\begin{definition}
+    \textbf{(Cost Distance)} Given a query $q$ and an object $o\in O$, we define the cost distance between $o$ and $q$ as:
+    \begin{equation}
+        cd(o,q)=cost(o) \cdot dist(o,q)
+    \end{equation} \label{E2}
+\end{definition}
+
+In Equation (\ref{E2}), $dist(o,q)$ represents the Euclidean distance between $o$ and $q$. The cost distance is more realistic compared with the cost functions in \cite{cao2011collective, long2013collective}, since the objects are always associated with the $cost$ for highlighting some features of objects in real applications.
+
+%\noindent
+\begin{definition}
+    \textbf{(Coverage weight)} Given a keyword $t$, an object $o\in O$ and a query $q=(\ell,\omega,W,\theta)$. We denote by $o.\nu_t$ the corresponding level of $t$ in $o.\nu$. We define the coverage weight of $t$ by $o$ as:
+    \begin{equation}
+        cw(o,t)=W[o.\nu_t]
+    \end{equation}
+\end{definition}
+
+Different from CoSKQ \cite{cao2011collective, long2013collective} in which $t$ is either covered by an object $o$ or not, in this work we consider the coverage weight. Note that if $t \notin o.\omega$, we set $cw(o,t)$ to 0. We use the notations $cov(o,q)=\sum_{t \in q.\omega}cw(o,t)$ and $cov(G,t)=\sum_{o \in G}cw(o,t)$ to denote the coverage weight of $q$ by $o$ and the coverage weight of $t$ by $G$, respectively. In Example 1, we know that $cov(o_1,q)=cw(o_1,t_1)+cw(o_1,t_2)=W[4]+W[5]=0.25+0.3=0.55$. In addition, if $cw(o,t)$ is greater than $q.\theta$ then we set it to $q.\theta$.
+
+
+%\noindent
+\begin{definition}
+    \textbf{(Level-aware Collective Spatial Keyword Query)} Given an LCSK query $q=(\ell,\omega,W,\theta)$, where $\ell$ is the query location and $\omega$ is the set of query keywords. $W$ is a normalized weight vector and $\theta$ is a threshold. The answer of the query $q$ is a group $G$ of objects that satisfy the following two conditions:
+    \begin{itemize}
+        \item $\forall t \in q.\omega$, it holds that $cov(G,t)\geq q.\theta$ (threshold constraint);
+        \item $\underaccent{G}{\arg} \min\sum_{o \in G}cd(o,q)$.
+    \end{itemize}
+\end{definition} \label{D4}
+
+Given a query $q$, we say that an object $o$ is \textit{\textit{relevant}} to $q$ if $\exists t \in q.\omega$, and it holds that $t \in o.\omega$. We denote by \textbf{$RO_q$} all the relevant objects to $q$ in the database $O$, that is, $RO_q=\{o|o \in O \wedge (\exists t \in q.\omega \wedge t \in o.\omega)\}$. We then only need to consider $RO_q$ for a specific query $q$. We say that $G$ is a \textit{\textit{feasible solution}} to $q$ if $G$ satisfies the threshold constraint in Definition 3, i.e., $\forall t \in q.\omega$, we have $cov(G,t)\geq q.\theta$. In other words, the LCSK query returns the \textit{feasible solution} with the smallest cost distance as the answer. Given a query $q$, when there are multiple optimal groups of objects, we choose one group randomly. For ease of reference, Table \ref{T1} summarizes the notations used widely in this paper.
+
+%\noindent
+\begin{thm}
+    The LCSK query is NP-hard.
+    \begin{pot}
+        To prove the LCSK query is NP-hard, we reduce the WSC problem to it. Typically, an instance of the WSC problem is of the form $<U,S,C>$, where $U=\{1,2,3,...,n\}$ consists of n elements and $S=\{S_1,S_2,S_3,...,S_m\}$ consists of a family of sets, and $S_i \subseteq U \wedge \cup{S_i}=U$. Each $S_i \subseteq U$ is associated with a positive cost $c_i \in C$ indicating the weight of $S_i$. The decision problem is to decide whether we can identify a subset $F \subseteq S$ such that $\cup_{S_i \in F}S_i=U$, and the sum of the cost of $F$, i.e., $\sum_{S_i \in F}c_i$, is minimized.
+
+        Next, we reduce the WSC problem to an LCSK query $q$ by two steps. Firstly, we show how to build the query $q=(\ell,\omega,W,\theta)$ based on $U,S$ and $C$. All elements in $U$ correspond to the set of query keywords, i.e., $\omega$. We then set the weight vector $W$ as $\{1,0,0,0,0\}$ and the threshold $q.\theta$ to 1. Here, $q.\ell$ can be assigned with any location, which has no influence. Secondly, the spatial database $O$ can be constructed as follows. We observe that each set $S_i$ corresponds to an object $o_i$ and the set of keywords $o_i.\omega$ is comprised of all elements in $S_i$. We then assign $c_i$ as the cost distance $cd(o_i,q)$ and set each level of $o_i.\nu$ to 1. It is clear that there is a solution to the WSC problem if and only if there is an answer to the query $q$. Hence, we complete the proof.
+    \end{pot}
+\end{thm}
+
+
+
+\section{Exact Algorithm}
+\begin{table}[tb]
+\caption{Example of KHT entries}\label{T2}
+\centering
+\begin{tabular}{|c|c|l|c|c|}
+\hline
+entry & keyword & object list & first index & second index \\
+\hline \hline
+$e_1$ & $t_1$ & $o_1,o_3,o_7,o_{10}$ & 5 & 0\\
+\hline
+$e_2$ & $t_2$ & $o_3,o_9$ & 6 & 1 \\
+\hline
+$e_3$ & $t_3$ & $o_1,o_7$ & 6 & 2 \\
+\hline
+$e_4$ & $t_4$ & $o_2,o_4,o_5$ & 6 & 1 \\
+\hline
+$e_5$ & $t_5$ & $o_1,o_3,o_6$ & 1 & 0 \\
+\hline
+$e_6$ & $t_6$ & $o_2,o_7$ & 2 & 0 \\
+\hline
+$e_7$ & $t_7$ & $o_5,o_6$ & 5 & 1 \\
+\hline
+$e_8$ & $t_8$ & $o_5,o_{10}$ & 0 & 0 \\
+\hline
+$e_9$ & $t_9$ & $o_8,o_{10}$ & 4 & 0 \\
+\hline
+\end{tabular}
+\end{table}
+
+Motivated by the observation that we only need to consider $RO_q$ for a specific query $q$, we develop an exact algorithm called MergeList for the case when $|RO_q|$ is limited. We first introduce the keyword hash table (KHT) index structure in Section 4.1, and then elaborate MergeList in Section 4.2.
+
+\subsection{The KHT Index Structure}
+To facilitate the access to the objects in $RO_q$, we propose the KHT index structure. It uses the hash table to organize the objects in $O$. Table \ref{T2} shows that each entry of KHT is of the form $<eid, t, olist, fi, si>$, where $eid$ is the identifier of an entry and $t$ denotes a keyword followed by a list of objects $olist$. $olist$ maintains these objects that contain $t$ in their textual descriptions, i.e., $olist=\{o|o \in O \wedge t \in o.\omega\}$. $fi$ and $si$ indicate the first and second index subscripts of an entry, respectively. That is, we identify an entry of KHT by a two-level index.
+
+
+\begin{figure}
+\begin{minipage}[t]{0.5\linewidth}
+\centering
+\includegraphics[width=1.2in,height=1.8in]{HASH}
+\caption{Construction of a two-level index}
+\label{F2}
+\end{minipage}
+\begin{minipage}[t]{0.5\linewidth}
+\centering
+\includegraphics[width=2.2in,height=1.8in]{KHT}
+\caption{An overview of KHT structure}
+\label{F3}
+\end{minipage}%
+\end{figure}
+
+To manage the trade-off between the exploration time and the space consumption, we use the perfect hashing technique \cite{cormen2001introduction} to build the two-level index. In particular, each entry $e$ is projected to a two-level index $(fi,si)$ based on the associated keyword $t$, and thus can be accessed in $O(1)$ time. As shown in Fig. \ref{F2}, we map the keyword $t$ to a two-level index in two steps. First, we project $t$ to a unique integer $FTemp$ using the string hash function BKDRHash. Note that, other string hash functions can also be exploited. Next, we derive $fi$ by performing a modulus on $FTemp$ over $M$, where $M$ is a predefined cardinality for the first level index. That is, the range of the first index varies from 0 to $M-1$. Second, we take $FTemp$ as the parameter and generate $STemp$ using an integer hash function. Similarly, we perform a modulus on $STemp$ over $C(fi)$ to get $si$. $C(fi)$ indicates the capacity of the first level index $fi$, which is dynamically determined based on the perfect hashing technique. For example, if there are $k$ keywords are projected to $fi$ after the first step, then $C(fi)=k^2$. By these two steps, each entry is associated with a two-level index, denoted by $(fi,si)$.
+
+As an example, Fig. \ref{F3} presents an instance of KHT index over the entries in Table \ref{T2}. For reason of space, we denote by $eid$ the corresponding entry and omit the empty entries in Fig. \ref{F3}. It is noteworthy that a delicate situation arises when multiple entries share the same two-level index $(fi,si)$, and the possibility is less than 0.5 as pointed out by \cite{cormen2001introduction}. We use the {\textit{linear probing} technique to tackle this problem. For instance, there is a conflict when we attempt to insert $e_4$ into KHT since $e_2$ has been already in the location $(6,1)$. As the location $(6,2)$ is occupied as well, with the linear probing technique, $e_4$ is inserted into $(6,3)$, as shown by the solid arrow. With KHT, given a query $q$, we can retrieve $RO_q$ in $O(|q.\omega|)$ time and avoid unnecessary accesses significantly.
+
+
+% the exact algorithm
+\subsection{Query Processing of MergeList}
+We first consider a naive exact algorithm that enumerates all subsets of $RO_q$, and then delivers the optimal one that satisfies the threshold constraint and has the smallest cost distance as the answer. Fig. \ref{F36} illustrates how to enumerate all subsets iteratively. Initially, the \textit{candidate set} $\tilde{C}$ only has one element, i.e., the empty set $\{\}$. In each of the subsequent iterations, for each existing subset (e.g., $\{\}$) in $\tilde{C}$, it is combined with the current visited object (e.g., $o_1$) to generate a new subset (e.g., $\{o_1\}$). The procedure terminates once all the objects in $RO_q$ have been visited, and the optimal one in $\tilde{C}$ is delivered as the answer.
+
+Clearly, the naive method yields an exponential time complexity in terms of $|RO_q|$. The bottleneck lies in that all subsets of $RO_q$ have to be enumerated and checked for finding the answer. In practice, however, a large number of the subsets are unqualified. They can be pruned by the best answer found so far if they have an equal or greater cost distance. Inspired by this, we develop an enhanced algorithm called MergeList, which prunes the candidate space with several strategies.
+
+To answer the LCSK query, MergeList first places the objects in $RO_q$ in ascending order of their cost distances, and then updates the candidate set $\tilde{C}$ iteratively by the objects in $RO_q$ until the termination condition (to be presented in Lemma 2) is achieved. Note that we keep the best answer (a subset of $RO_q$) found so far and its cost distance in $COS$ and $minCost$, and deliver $COS$ as the answer.
+
+MergeList enhances the naive approach from the following two aspects. First, MergeList organizes the objects in $RO_q$ in ascending order of their cost distances. This enables two effective pruning strategies, namely Lemmas 1 and 2, to significantly shrink the candidate space. Second, $\tilde{C}$ only maintains the promising answers, rather than maintaining all the subsets of $RO_q$ as in the naive approach. The \textit{promising answer} $\xi$ refers to a group of objects in $RO_q$ satisfying two conditions: (1) the threshold constraint is not satisfied, that is, $\exists t \in q.\omega \wedge cov(\xi,t) < q.\theta$. As for $\xi$ that satisfies the threshold constraint, we know that it is a feasible solution. Hence, we can update $COS$ by it or prune it by $COS$, depending on their cost distances; (2) the cost distance of $\xi$ is less than $minCost$, i.e., $\sum_{o \in \xi}cd(o,q) < minCost$. As for $\xi$ that has an equal or greater cost distance, we can prune them by Lemma 1. Thus, they do not need to be reserved in $\tilde{C}$.
+
+
+\begin{figure}
+\begin{minipage}[t]{0.5\linewidth}
+\centering
+\includegraphics[width=2.2in]{CS}
+\caption{Illustration of the naive approach}
+\label{F36}
+\end{minipage}%
+\begin{minipage}[t]{0.5\linewidth}
+\centering
+\includegraphics[width=2.2in]{RQ}
+\caption{Illustration of the $RO_q$}
+\label{F37}
+\end{minipage}
+\end{figure}
+
+
+We proceed to introduce some notations used by the following lemmas. As shown in Fig. \ref{F37}, the current visited object $cvo$ splits the ordered $RO_q$ into three components, namely $\tilde{RO_q}$, $cvo$ and $\hat{RO_q}$. We denote by $\tilde{RO_q}$ the objects in $RO_q$ that have been already visited (before $cvo$). Similarly, $\hat{RO_q}$ represents the objects that have not been visited (after $cvo$). In particular, given two objects $o$, $o' \in RO_q$, we denote by $o \prec o'$ ($o \preceq o'$) if $o$ is to be visited after (not before) $o'$ in $RO_q$.
+
+We claim that a promising answer $\xi$ \textit{precedes} $cvo$ if $\xi \subseteq \tilde{RO_q}$, denoted by $\xi|_{cvo}$. Put differently, $\forall o \in \xi$, it holds that $cov \prec o$. Consider, for example, the promising answer $\{o_1,o_5\}$ precedes $o_6$ in Fig. \ref{F37} because $o_6 \prec o_1$ as well as $o_6 \prec o_5$. Given a promising answer $\xi$ (e.g., $\{o_1,o_5\}$) that precedes $cvo$, we say that the set $\xi'$ (e.g., $\{o_1,o_5,o_8\}$) is a successor of $\xi$ w.r.t. $cvo$ (e.g., $o_6$), if $\xi \subset \xi'$ and $\forall o \in \xi' \wedge o \notin \xi$, it holds that $o \preceq cvo$. For instance, $\{o_1,o_5,o_8\}$ is a successor of $\{o_1,o_5\}$ w.r.t. $o_6$. Specifically, each promising answer will later spawn an exponential number of successors. In this paper hereafter, we denote by $\Gamma_{\xi}^{cvo}$ all the successors of $\xi$ w.r.t. $cvo$.
+
+\begin{lem}
+    Given a query $q$, a promising answer $\xi \in \tilde{C}$ and the current visited object $cvo \in RO_q$. If the sum of the cost distance of $\xi$ and $cvo$ is greater than $minCost$, that is, $\sum_{o \in \xi}cd(o,q)+cd(cvo,q) > minCost$, then no successor $\xi' \in \Gamma_{\xi}^{cvo}$ can be the answer of $q$.
+    \begin{pot}
+        We prove this lemma by contradiction. Let $\xi' \in \Gamma_{\xi}^{cvo}$ be the answer returned by MergeList. Thus, we have $\sum_{o \in \xi'}cd(o,q) \leq minCost$. By the property of successor, we know that there exists at least one object $o'$, and it holds that $o' \in \xi' \wedge o' \notin \xi$. Also, we know that $o' \prec cov$, and thus $cd(cov,q)\leq cd(o',q)$. Combining the above two inequalities together with the given condition $\sum_{o \in \xi}cd(o,q)+cd(cvo,q) > minCost$, we have $\sum_{o \in \xi'}cd(o,q)=\sum_{o \in \xi}cd(o,q)+\sum_{o' \in \xi' \wedge o' \notin \xi}cd(o',q) > minCost$. This contradicts the assumption that $\xi'$ is the final answer. Thus, no successor $\xi' \in \Gamma_{\xi}^{cvo}$ can be the answer. We complete the proof.
+    \end{pot}
+\end{lem} \label{L3}
+
+
+Lemma 1 enables to significantly shrink the candidate space, namely the size of $\tilde{C}$. As suggested in Lemma 1, if the sum of the cost distance of $\xi$ and $cvo$ is greater than $minCost$, then we can discard $\xi$ and all its successors $\Gamma_{\xi}^{cvo}$ from consideration. This is because the solution quality of $COS$ is always better than or equal to that of any set in $\xi \cup \Gamma_{\xi}^{cvo}$. Subsequently, we reveal an appealing property that allows to terminate the query processing.
+
+\IncMargin{1em}
+\begin{algorithm}[htb]
+\small
+\caption{$MergeList$}    % 给算法一个标签，以便其它地方引用该算法
+%\DontPrintSemicolon
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input {KHT, $q$}
+\Output{$G$}
+\BlankLine
+\LinesNumbered
+$COS \longleftarrow \{\}$; $minCost \longleftarrow \infty$\;
+add the empty set $\{\}$ into $\tilde{C}$\;
+$RO_q \longleftarrow$ retrieve the relevant objects to $q$ from KHT\;
+place the objects in $RO_q$ in ascending order of their cost distances\;
+\For{each object $cvo \in RO_q$} {
+    \lIf{$cd(cvo,q)> minCost$} {break}\
+    \For{each $\xi \in \tilde{C}$}{
+        \If{$\sum_{o \in \xi}cd(o,q)+cd(cvo,q) > minCost$} {
+            delete $\xi$ from $\tilde{C}$\;
+            continue\;
+        }
+        $tempSet \longleftarrow \xi \cup \{cvo\}$\;
+        \If{$tempSet$ is a feasible solution} {
+            $COS \longleftarrow tempSet$\;
+            $minCost \longleftarrow$ the cost distance of $tempSet$\;
+            delete $\xi$ from $\tilde{C}$\;
+        }
+        \lElse{add $tempSet$ into $\tilde{C}$}
+    }
+}
+$G \longleftarrow COS$\;
+return $G$ as the answer\;
+\end{algorithm}
+\DecMargin{1em}
+
+
+\begin{lem}
+    Given a query $q$ and the ordered $RO_q$, in which the objects are placed in ascending order of their cost distances. If $\forall \xi \in \tilde{C}$, the sum of the cost distance of $\xi$ and cvo is greater than $minCost$, i.e., $\sum_{o \in \xi}cd(o,q)+cd(cvo,q) > minCost$, then $COS$ is the answer.
+    \begin{pot}
+        As noted earlier, $\tilde{C}$ maintains all the promising answers found so far. Let $\xi$ be any promising answer in $\tilde{C}$. By the property of the promising answer, we know that $\xi$ is not a feasible solution, and additional objects that are not before $cvo$, i.e., $o' \preceq cvo$, are required to satisfy the threshold constraint. On the other hand, we know that $\forall o' \preceq cvo$, it holds that $cd(o',q) \geq cd(cvo,q)$. Based on the given condition $\sum_{o \in \xi}cd(o,q)+cd(cvo,q) > minCost$, we derive that $\sum_{o \in \xi}cd(o,q)+cd(o',q) > minCost$ as well. Combining the above inequality together with Lemma 1, we derive that there does not exist unseen feasible solutions that achieve a smaller cost distance than $minCost$. Thus, $COS$ is the final answer and we complete the proof.
+    \end{pot}
+\end{lem} \label{L1}
+
+
+We elaborate the details of MergeList in Algorithm 1. We start by constructing the ordered $RO_q$ (lines 3-4), in which the objects are placed in ascending order of their cost distances. We then access the objects in $RO_q$ iteratively as follows. Consider an iteration. We first examine whether the cost distance of $cvo$ is greater than $minCost$. If so, for $\forall \xi \in \tilde{C}$, we know that the sum of the cost distance of $\xi$ and $cd(cvo,q)$ is greater than $minCost$ as well. Based on Lemma 2, we know that $COS$ is the answer, thus we terminate the procedure (line 6). Otherwise, each $\xi \in \tilde{C}$ is processed as follows. We check whether Lemma 1 is satisfied. If yes, we delete $\xi$ from $\tilde{C}$ (lines 8-10). If no, we combine $cvo$ with $\xi$ to generate a new set $tempSet$ (line 11). In particular, if $tempSet$ is a feasible solution, we update $COS$ and $minCost$ accordingly by $tempSet$ (lines 12-15). Otherwise, we add $tempSet$ into $\tilde{C}$ for further exploration. Finally, we assign $G$ as $COS$, and deliver $G$ as the answer (lines 17-18).
+
+
+
+\textbf{Example 2}: Consider a query $q$ associated with two query keywords, e.g., $q.\omega=\{t_1, t_2\}$. Fig. \ref{F4}(a) shows the objects in $RO_q$, the cost distance to $q$ and the coverage weight of these two keywords by objects in $RO_q$. In Fig. \ref{F4}(b), we present how to answer the query by MergeList.
+\begin{itemize}
+    \item Step 1 (initialization): We initialize the Candidate Set $\tilde{C}$, $minCost$ and $COS$ at this step.
+    \item Step 2 (visit $o_1$): At this step, we generate a new set for each promising answer in $\tilde{C}$ by combining $o_1$ with it. For instance, we combine $o_1$ with the promising answer $\{\}$ and obtain $\{o_1\}$.
+    \item Step 3 (visit $o_2$): Similarly, at this step, we combine $o_2$ with all existing promising answers in $\tilde{C}$ as shown in Fig. \ref{F4}(b).
+    \item Step 4 (visit $o_3$): At this step, we derive a feasible solution, i.e., $\{o_2,o_3\}$. We assign $COS$ as $\{o_2,o_3\}$, and then prune the unqualified elements, e.g., $\{o_1,o_2,o_3\}$ by Lemma 1. Note that, we delete $\{o_2,o_3\}$ from $\tilde{C}$ as well. This is because each successor of $\{o_2,o_3\}$ has a greater cost distance than $\{o_2,o_3\}$, and cannot be the answer. Thus, we can stop the expansion from $\{o_2,o_3\}$ by deleting it from $\tilde{C}$.
+    \item Step 5 (visit $o_4$): At this step, we prune unqualified elements of $\tilde{C}$ by Lemma 1. For instance, as the sum of the cost distance of $\{o_1,o_2\}$ and $\{o_4\}$ is greater than $minCost$, we delete $\{o_1,o_2\}$ from $\tilde{C}$.
+    \item Step 6 (visit $o_5$): Since the cost distance of $o_5$ is greater than $minCost$, Lemma 2 is applied and we terminate the procedure. Finally, we deliver $\{o_2,o_3\}$ as the answer.
+\end{itemize}
+
+\begin{figure}[t] \centering
+    \subfigure[Details of the objects in $RO_q$] { \label{MergeListQ}
+    \includegraphics[width=2.7in,height=0.4in]{mgl}
+    }
+    \subfigure[Steps of the query processing] { \label{MergeListS}
+    \includegraphics[width=3.3in,height=1.1in]{mgr}
+    }
+\caption{Illustration of the MergeList algorithm}
+\label{F4}
+\end{figure}
+
+\begin{thm}
+    (Correctness of MergeList) MergeList always returns the correct answer.
+    \begin{pot}
+        Let the cardinality of $RO_q$ be $n$, thus there are up to $2^n-1$ non-empty elements in $\tilde{C}$. For any $\xi \in \tilde{C}$, it is either used to update $COS$ or pruned by $COS$. Specifically, if the sum of the cost distance of $\xi$ and $cvo$ is less than $minCost$, we update $COS$ by $\xi \cup \{cvo\}$. Otherwise, we delete $\xi$ from $\tilde{C}$ based on Lemma 1. Hence, it suffices to show that MergeList never prunes any feasible solution with a smaller cost distance than $minCost$ (false negatives), and never maintains a feasible solution with a greater cost distance than $minCost$ (false positives). Combining the above two observations, we safely drive that MergeList always returns the correct answer.
+    \end{pot}
+\end{thm}
+
+
+
+\section{Approximate Algorithm}
+%\input{APPROXIMATE_ALGORITHM}
+MergeList produces and checks a large number of promising subsets for answering a query, which is prohibitively expensive when the dataset is large. We thus devise an approximate algorithm called MaxMargin. In the following, we introduce the proposed LIR-tree in Section 5.1, and elaborate optimizing strategies in Section 5.2. Finally, we delve into the details of MaxMargin in Section 5.3 with theoretical analysis.
+
+\subsection{The LIR-tree Index Structure}
+We proceed to briefly review the IR-tree \cite{cong2009efficient}, which lays the foundation of the LIR-tree. The IR-tree is essentially an R-tree \cite{Guttman1984R} with each node augmented with an inverted file \cite{Zobel2006Inverted}. Each node $n$ of the IR-tree contains multiple entries. Each entry $e$ is of the form $(id,mbr,text)$, where $id$ is an identifier of a child node (or an object) in the non-leaf (or leaf) node, $mbr$ is the minimum bounding rectangle (MBR) enclosing all rectangles of the entries in $n$, and $text$ captures the textual description of all entries in $n$. In addition, each node is associated with an inverted file constituted by two components, namely the vocabulary table and the posting list, as follows:
+\begin{itemize}
+    \item Vocabulary table: Including all distinct keywords contained by the textual description of objects in the underlying database.
+    \item Posting list: For each keyword $t$, the corresponding posting list maintains all the ids of the entries (i.e., the objects or the child nodes) with $t$ in their descriptions.
+\end{itemize}
+
+The IR-tree enables to prune the search space from a high-level perspective. Consider, for example, we can first check whether a node $n$ satisfies the query constraints, if so we add all its child nodes into the priority queue for further exploration. Otherwise, we skip the entire subtree rooted at $n$.
+
+\begin{figure}[tb] \centering
+    \subfigure[Object descriptions] {
+    \includegraphics[width=2.3in,height=1.6in]{objects}
+    }
+    \subfigure[The MBR of objects] {
+    \includegraphics[width=1.8in,height=1.6in]{mbr}
+    }
+    \subfigure[The LIR-tree] {
+    \includegraphics[width=1.9in,height=1.4in]{lirtree}
+    }
+\caption{An instance of the LIR-tree}
+\label{F5}
+\end{figure}
+
+
+To be adaptive to our problem, we propose the LIR-tree that is extended from the IR-tree. The major difference between the IR-tree and LIR-tree comes from the inverted file. As discussed before, the posting list of inverted file only maintains the ids for each IR-tree node. This is not enough in our settings where the keyword level and the cost of objects are considered. We thus embed the level and cost into the posting lists. Note that, we maintain the information of level and cost in leaf nodes, and only maintain the cost in non-leaf nodes. This is because the level is meaningful for objects rather than nodes.
+
+In leaf nodes, the posting list corresponding to keyword $t$ is of the form $<c_t; (o_{i_1}, l_{i_1}),...,(o_{i_n}, l_{i_n})>$, where $c_t$ maintains the smallest cost of objects in the posting list (i.e., from $o_{i_1}$ to $o_{i_n}$). The pair $(o_{i_k}, l_{i_k})$ records the id of an object and the corresponding level of $t$ in $o_{i_k}$. We consider IF $N_4$ in Fig. \ref{F7} as an example. We observe that the posting list of $t_4$ contains two objects, namely $o_5$ and $o_{10}$. The $c_{t_4}$ is set to 0.6, which is the smallest cost of objects $o_5$ and $o_{10}$ (see Fig. \ref{F5}(a)). Also, we know that $o_5$ is associated with two keywords $t_4$ and $t_7$, and the level of $t_4$ is 2. We thus maintain the pair $(o_5, 2)$ in the posting list of $t_4$.
+
+
+In non-leaf nodes, the posting list corresponding to keyword $t$ is of the form $<\tilde{c_t}; (n_{i_1}, c_{i_1}),...,(n_{i_n}, c_{i_n})>$, where $\tilde{c_t}=\min_{1\leq k \leq n}{c_{i_k}}$ is the smallest cost of all child nodes in the posting list. The pair $(n_{i_k}, c_{i_k})$ records the id of a child node and the corresponding smallest cost w.r.t. the keyword $t$ (i.e., $c_t$) in the inverted file of $n_{i_k}$. The IF $N_6$ in Fig. \ref{F7} shows that the posting list of $t_6$ contains two entries, namely $(N_3,0.3)$ and $(N_4,0.6)$. That is to say that the cost of $N_3$ is 0.3 w.r.t. $t_6$, which can be obtained from the posting list of $t_6$ in IF $N_3$. Also, we set $\tilde{c_{t_6}}$ to 0.3, since it holds that $0.3 < 0.6$.
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=6.3in,height=1.3in]{ivfile}
+\caption{Content of augmented inverted files} \label{F7}
+\end{figure}
+
+\subsection{Optimizing Strategies}
+Literatures \cite{cao2015efficient, cao2011collective} devise greedy algorithms for answering the CoSKQ, which iteratively append the current optimal entry into the result set by traversing the IR-tree in the best-first fashion. Initially, the root node of IR-tree is pushed into the priority queue $Q$. In each of the subsequent iterations, the top entry $e$ is popped and examined as follows: If $e$ is an object, we add it into the result set $G$ and update all the remaining entries in $Q$ accordingly. Otherwise, all the child nodes of $e$ are pushed into $Q$ for further exploration.
+
+Two major drawbacks degrade the performance of the above algorithms: (1) the pruning power of the algorithms is insufficient, and (2) they have to update all the remaining entries in each iteration, which is computationally expensive. We develop two strategies, namely BBS and TUS, to attack the aforementioned drawbacks accordingly.
+
+\begin{definition}
+    \textbf{(Minimum Cost Distance)} Given a query $q$ and a node $n$ of the LIR-tree, we define the minimum cost distance between $n$ and $q$ as:
+    \begin{equation}
+        mcd_q(n)= minDist(q,n)*minCost(q,n)
+    \end{equation}
+\end{definition}
+
+In Equation (3), we denote by $minDist(q,n)$ the minimum distance between $q$ and the MBR of $n$. If $q$ falls into the MBR of $n$, we set this distance to 0. Otherwise, the distance can be set as the minimum distance between $q$ and the edges of the MBR of $n$. The $minCost(q,n)$ refers to the smallest cost of objects in $n$ that are relevant to the query $q$. Recall that, the smallest cost is maintained in the posting list (see Fig. \ref{F7}), and thus we can get $minCost(q,n)$ easily. Based on the above discussion, we know that $mcd_q(n)$ is the lower bound of the cost distance of all objects in $n$. For simplicity, \textit{we say that an object $o$ is in $n$ if $o$ is enclosed by the MBR of $n$ hereafter}, whenever there is no ambiguity.
+
+\begin{lem}
+    Let $FS$ be a feasible solution to a query $q$, $\hat{FS}$ be the corresponding cost distance, and $n$ be a node of the LIR-tree. If $mcd_q(n) > \hat{FS}$, then no object in $n$ can be in the answer.
+    \begin{pot}
+    Recall that, $mcd_q(n)$ offers a lower bound of the cost distance of all objects in $n$. That is, for any object $o$ in $n$, it holds that $cd(o,q)\geq mcd_q(n)$. Combining the given condition $mcd_q(n) > \hat{FS}$, we derive $cd(o,q) > \hat{FS}$ as well. As $FS$ is a feasible solution to $q$, and it achieves better performance than any other feasible solutions that contain the objects in $n$ in terms of the cost distance. As a result, no object in $n$ can be in the answer and thus can be discarded from consideration. Hence, we complete the proof.
+    \end{pot}
+\end{lem} \label{L3}
+
+\textbf{BBS}: As suggested in Lemma 3, we can take $\hat{FS}$ as the upper bound and prune the search space with it. In particular, we examine each node $n$ as follows: If $mcd_q(n) > \hat{FS}$, we then skip the entire subtree rooted at $n$ and all objects in $n$ are pruned. Otherwise, we add all the child nodes of $n$ into the priority queue $Q$ for further exploration. Clearly, BBS facilitates the query processing by reducing the cardinality of the priority queue $Q$.
+
+
+Next, we describe how to build the initial feasible solution. We build it with the relevant objects that are close to $q$. We start from the root node of the LIR-tree, and then find the unseen \textit{nearest leaf node} iteratively in the best-first fashion. We denote by the \textit{nearest leaf node} a leaf node $n$ that has the smallest $minDist(q,n)$ and contains at least one query keyword. Then, we place all relevant objects in $n$ in ascending order of their cost distances to $q$, and add these objects into $FS$ progressively until the threshold constraint is satisfied. That is, $FS$ has been already a feasible solution. Note that, we continue to find the next unseen nearest leaf node if the threshold constraint is not satisfied, and repeat the above procedure.
+
+Before describing in detail how to use TUS to further improve the query performance, we first introduce some concepts.
+
+\begin{definition}
+    \textbf{(Contribution Ratio)} Given a query $q$ and an entry $e$ (i.e., an object or a node) of the LIR-tree, we define the contribution ratio $cr$ of $e$ to $q$ as follows:
+    \begin{displaymath}
+        cr(e,q) = \left \{
+            \begin{array}{ll}
+                \frac{|q.\omega|*q.\theta} {mcd_q(e)} & \textrm{if e is a node,}\\
+                \frac{cov(e,q)}{cd(e,q)} & \textrm{if e is an object.}\\
+            \end{array} \right.
+    \end{displaymath}
+\end{definition}
+
+
+
+
+
+In Definition 5, we denote by $|q.\omega|$ the number of query keywords. By considering both the coverage weight and the cost distance, $cr(e,q)$ can better capture the contribution of $e$ to $q$ than that of $cov(e,q)$. Note that the contribution ratio of an unseen entry $e$ in $Q$ decreases as the objects are added into $G$. To capture this change dynamically, we define the \textit{dynamic contribution ratio}.
+
+\begin{definition}
+    \textbf{(Dynamic Contribution Ratio)} Given a query $q$ and an entry $e$ (i.e., an object or a node) of the LIR-tree, we define the dynamic contribution ratio $dcr$ of $e$ when there are $r$ objects in the result set $G$, i.e., $|G|=r$, as follows:
+   \begin{displaymath}
+        dcr_{q}^{r}(e) = \left \{
+            \begin{array}{ll}
+                \frac{\Upsilon_q^r*q.\theta} {mcd_q(e)} & \textrm{if e is a node,}\\
+                \frac{cov^r(e,q)}{cd(e,q)} & \textrm{if e is an object.}\\
+            \end{array} \right.
+    \end{displaymath}
+\end{definition}
+
+\IncMargin{1em}
+\begin{algorithm}[!htb]
+\small
+\caption{$MaxMargin$}   % 给算法一个标签，以便其它地方引用该算法
+%\DontPrintSemicolon
+\SetKwData{G}{G}\SetKwData{RV}{RV}
+\SetKwData{Q}{Q}
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input {$q$}
+\Output{$G$}
+\BlankLine
+\LinesNumbered
+$r \longleftarrow 0$; $G \longleftarrow \emptyset$\;
+\lFor{$i \longleftarrow 1$ \KwTo $|q.\omega|$} { $RV[i] \longleftarrow q.\theta$}\
+construct the feasible solution $FS$ with the objects near to $q$\;
+$upBound \longleftarrow \sum_{o \in FS}cd(o,q)$\;
+$Q.enqueue(LIR.root)$\;
+\While{$(!Q.empty())$} {
+    $e \longleftarrow Q.dequeue()$\;
+    \eIf{e is a node} {
+        recompute the $dcr_q^r(e)$\;
+        \If{$dcr_q^r(e)$ is greater than the $dcr$ of the top entry in $Q$} {
+            \For{each entry $e'$ in node $e$} {
+                \If{$\exists t \in q.\omega \wedge t \in e'.text$ and $mcd_q(e')<upBound$} {
+                    compute the $dcr_q^r(e')$\;
+                    $Q.enqueue(e')$\;
+                }
+            }
+        }
+        \lElse{$Q.enqueue(e)$}
+    } {
+        \eIf{$e.cv[i]\leq RV[i]$ for all $i$} {
+        $G \longleftarrow G\cup \{e\}$\;
+        \For{$j \longleftarrow 1$ \KwTo $|q.\omega|$} {
+            \lIf{$RV[j]\geq e.cv[j]$} { $RV[j] \longleftarrow RV[j]-e.cv[j]$}
+            \lElse{$RV[j] \longleftarrow 0$}
+        }
+        \lIf{$RV[j] == 0$ for all $j$} {break}
+        $r$++\;
+        $FS \longleftarrow refineFS(FS,G)$\;
+        $upBound \longleftarrow \sum_{o \in FS}cd(o,q)$\;
+    } {
+        \For{$j \longleftarrow 1$ \KwTo $|q.\omega|$} {\lIf{$RV[j]< e.cv[j]$} {$e.cv[j] \longleftarrow RV[j]$}}
+        recompute the $dcr_q^r(e)$\;
+        $Q.enqueue(e)$\;
+      }
+    }
+}
+return $G$ as the answer\;
+\end{algorithm}
+\DecMargin{1em}
+
+
+In Definition 6, we denote by $\Upsilon_q^r$ the number of query keywords whose coverage weights have not reached the threshold $q.\theta$. The $cov^r(e,q)$ represents the remaining coverage weight of $q$ by the object $e$ when $r$ objects are included in $G$. Note that, $\Upsilon_q^r$ and $cov^r(e,q)$ keep decreasing when we add an object into $G$.
+
+\begin{lem}
+    Given a query $q$, a node $n$ of the LIR-tree. For any object $o$ in $n$, and any $r$ ($r \geq 0$), it holds that $dcr_{q}^{r}(o)\leq dcr_{q}^{r}(n)$.
+    \begin{pot}
+    For any object $o$ in $n$, we know that $cov^r(o,q) \leq \Upsilon_q^r*q.\theta$. Then, according to the definition of $mcd_q(n)$, we know that $mcd_q(n)$ is the lower bound of the cost distance of all objects in $n$, that is, $cd(o,q) \geq mcd_q(n)$. With these two inequalities, we have $dcr_{q}^{r}(o)\leq dcr_{q}^{r}(n)$. Hence, the proof finishes.
+    \end{pot}
+\end{lem} \label{L4}
+
+
+Lemma 4 provides an upper bound for the dynamic contribution ratio of all the objects in $n$. Subsequently, we reveal an appealing property of the dynamic contribution ratio in Lemma 5. Based on these two lemmas, we develop TUS that reduces the updating cost of the priority queue $Q$.
+\begin{lem}
+    Given a query q, an entry e (i.e., an object or a node) of the LIR-tree and two integers m, n ($m \leq n$), it holds that $dcr_{q}^{n}(e)\leq dcr_{q}^{m}(e)$.
+    \begin{pot}
+    As suggested by the formula of dynamic contribution ratio, the denominator (e.g., cd(e,q)) is a constant. However, the numerator (e.g., $cov^r(e,q)$) may decrease when an object is added into $G$. As a result, we have $cov^n(e,q) \leq cov^m(e,q)$ and $\Upsilon_q^n \leq \Upsilon_q^m$, which leads to the decrease of dynamic contribution ratio. When $m\leq n$, we can safely draw the conclusion that $dcr_{q}^{n}(e)$ is not greater than $dcr_{q}^{m}(e)$. Hence, we complete the proof.
+    \end{pot}
+\end{lem} \label{L5}
+
+
+
+\IncMargin{1em}
+\begin{algorithm}[t]
+\small
+\caption{$refineFS$}    % 给算法一个标签，以便其它地方引用该算法
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input {\textit{FS}, \textit{G}}
+\Output {$FS'$}
+\BlankLine
+\LinesNumbered
+$FS' \longleftarrow FS \cup G$\;
+organize the objects in $FS'$ in descending order of their cost distances\;
+\For{each object $o \in FS'$} {
+    $Temp \longleftarrow FS' - \{o\}$\;
+    \lIf{$Temp$ is a feasible solution} {
+        $FS' \longleftarrow Temp$
+    }
+}
+\lIf{$\sum_{o \in FS}cd(o,q) < \sum_{o \in FS'}cd(o,q)$} {
+        $FS' \longleftarrow FS$
+}
+return $FS'$\;
+\end{algorithm}
+\DecMargin{1em}
+
+\textbf{TUS}: Previous approaches in \cite{cao2015efficient, cao2011collective} update all the remaining entries in $Q$ when an object is added into $G$, which is computationally expensive. TUS does not update the dynamic contribution ratio of $e$ until it is popped from the priority queue $Q$. Lemma 5 suggests that if $e$ is still the current optimal entry among all the remaining entries in $Q$, we can handle it as follows: If $e$ is an object, we then add it into $G$. Otherwise, we expand it by pushing all its child nodes into $Q$ for further exploration. Specifically, the remaining entries in $Q$ do not need to be updated immediately, which significantly reduces the updating overhead. We know that, TUS enhances the performance by reducing the updating cost of the priority queue.
+
+
+\subsection{Query Processing of MaxMargin}
+Based on the above two optimizing strategies, we develop the approximate algorithm MaxMargin. It answers the query by adding the current optimal object into the result set $G$ progressively until the threshold constraint is satisfied.
+
+Algorithm 2 presents the pseudocode for MaxMargin. We keep the relevant entries (i.e., the objects and nodes) in $Q$ in descending order of the dynamic contribution ratio, and use $RV$ to record the difference between $q.\theta$ and the coverage weight of each query keyword by $G$ dynamically. Initially, each dimension of $RV$, e.g., $RV[i]$, is set to $q.\theta$ (line 2). Then, we build the initial feasible solution $FS$ (as described in Section 5.2), and take $upBound$ as the upper bound. Next, we perform an iterative procedure. We first pop the top entry $e$ and find out whether $e$ is a node. If yes, we continue as follows: We first recompute the dynamic contribution ratio of $e$, i.e., $dcr^r_q(e)$. If $dcr^r_q(e)$ is greater than the dynamic contribution ratio of the top entry in $Q$, that is, $e$ is the current optimal entry. We thus push all unfiltered entries of $e$ into $Q$ (lines 10-14). Otherwise, $e$ is pushed into $Q$ (line 15). If no, that is, $e$ is an object, there are two different cases. Case 1: If for $\forall i$, it holds that $e.cv[i]\leq RV[i]$. Here, we denote by $e.cv[i]$ the remaining coverage weight of the $i$th keyword in $q.\omega$ by $e$. We know that the dynamic contribution ratio of $e$ has not decreased, and thus $e$ does not need to be updated. We thus add $e$ into $G$ and update $RV$ accordingly (lines 18-21). If the threshold constraint is achieved (line 22), we terminate the procedure immediately. Otherwise, we invoke Algorithm 3 to update $FS$ and $upBound$ (lines 24-25). Case 2: If $\exists i$, and it holds that $e.cv[i]>RV[i]$, we update $RV$ and push the updated $e$ into $Q$ (lines 27-30).
+
+Algorithm 3 shows how to update $FS$ by $G$. We consider a simple strategy. First, $FS$ is combined with $G$ to form $FS'$ (line 1). All objects in $FS'$ are organized in descending order of their cost distances (line 2). Then, we remove the current visited object $o$ from $FS'$ and obtain a temporary set, namely $Temp$. We check whether $Temp$ is a feasible solution. If so, we then set $FS'$ as $Temp$ (line 5). The algorithm repeats the above procedure until all objects in $FS'$ have been explored. In line 6, if $FS$ has a smaller cost distance, we update $FS'$ by $FS$, which guarantees that we can always return a feasible solution whose cost distance is not larger than that of $FS$. Finally, we return $FS'$ as a new feasible solution.
+
+\begin{thm}
+    The approximation ratio of MaxMargin is not greater than $\frac{H(\lfloor cov+1\rfloor)}{q.\theta}$, where $cov$ is the largest $cov(o_j,q)$ for $\forall o_j \in RO_q$, $cov+1$ is rounded down by $\lfloor cov+1\rfloor$, and $H(k)=\sum_{i=1}^{k} \frac{1}{i}$ is the $k$th harmonic number.
+    \begin{pot}
+        Inspired by \cite{chvatal1979greedy}, we present the proof of this theorem as follows. We denote by m, n the number of elements in $q.\omega$ and $RO_q$, respectively. We define the $m\times n$ matrix $P=(p_{ij})$ as follows:
+        \begin{displaymath}
+            p_{ij} = \left \{
+                \begin{array}{ll}
+                    cw(o_j,q.\omega^{i}) & \textrm{if $q.\omega^{i} \in o_j.\omega$,}\\
+                    0 & \textrm{otherwise.}\\
+                \end{array} \right.
+        \end{displaymath}
+
+        Based on the definition of P, we know that n columns of P correspond to n coverage weight vectors. MaxMargin is to find a group G of objects, and we use an incidence vector $x=(x_j)$ to represent feasible solutions. As a result, the incidence vector x of any feasible solution satisfies:
+
+        \begin{eqnarray*}
+            \sum_{j=1}^n p_{ij}x_j \geq q.\theta & for\ all\ i, \\
+             x_j \in \{0,1\}  & for \ all \ j.\\
+        \end{eqnarray*}
+
+        The formula above suggests that the group of objects x implied can satisfy the threshold constraint. For ease of presentation, we denote the cost distance of $o_j$ by $c_j$ hereafter. Also, we denote by $cov_{j}^{r}$ the remaining coverage weight to q by $o_j$ when $r-1$ objects are added into $G$. We claim that these inequalities imply
+        \begin{equation} \label{E6}
+            \sum_{j=1}^{n} H(\lfloor cov_j^1+1\rfloor)c_j x_j\geq q.\theta \sum_{o_j \in G}c_j
+        \end{equation}
+        for the result set G returned by the greedy approach. Once (\ref{E6}) is proved, the theorem will follow by considering x be the incidence vector of an optimal feasible solution.
+
+        To prove (\ref{E6}), it is sufficient to exhibit nonnegative numbers $y_1, y_2, ..., y_m$ such that
+         \begin{equation} \label{E7}
+            \sum_{i=1}^{m}p_{ij}y_{i} \leq H(\sum_{i=1}^{m}p_{ij})c_{j} \quad for\ all\ j
+        \end{equation}
+        and such that
+         \begin{equation} \label{E8}
+            \sum_{i=1}^{m} y_{i} = \sum_{o_j \in G}c_j
+        \end{equation}
+        for then
+        \begin{eqnarray*}
+            \sum_{j=1}^n H(\sum_{i=1}^m p_{ij})c_j x_j &\geq& \sum_{j=1}^n (\sum_{i=1}^m p_{ij} y_i)x_j\\
+            &=& \sum_{i=1}^m(\sum_{j=1}^n p_{ij}x_j)y_i \\
+            &\geq& q.\theta \sum_{i=1}^m y_i\\
+            &=& q.\theta \sum_{o_j \in G}c_j\\
+        \end{eqnarray*}
+        as desired.
+
+        The numbers $y_1, y_2, ..., y_m$ satisfying (\ref{E7}) and (\ref{E8}) have a simple intuitive interpretation: each $y_i$ can be interpreted as the cost distance achieved by MaxMargin for covering the keyword $q.\omega^{i}$. Without loss of generality, we can assume that G is \{$o_1$,$o_2$,...,$o_r$\} when r objects are added into G, and so
+        \begin{displaymath}
+            \frac{cov_{r}^{r}}{c_r} \geq \frac{cov_{j}^{r}}{c_j}
+        \end{displaymath}
+        for any r, j. If t objects are required to cover all query keywords, then
+        \begin{displaymath}
+            \sum_{o_j \in G}c_j=\sum_{j=1}^{t}c_{j},
+        \end{displaymath}
+        and
+        \begin{displaymath}
+            y_{i}=\sum_{r=1}^{t}\frac{c_{r}\cdot cw(o_r, q.\omega^{i})}{cov_{r}^{r}}.
+        \end{displaymath}
+        We know that
+        \begin{displaymath}
+            \sum_{i=1}^{m}y_i=\sum_{i=1}^{m}\sum_{r=1}^{t}\frac{c_{r}\cdot cw(o_r,  q.\omega^{i})}{cov_{r}^{r}}=\sum_{r=1}^{t}c_{r}
+        \end{displaymath}
+
+        For any $o_j$, we know that $cov_{j}^{r}$ decreases as the iteration continues from Lemma 5. We assume s is the largest superscript such that $cov_{j}^{s}>0$ then
+        %\begin{flushleft}
+        \begin{eqnarray*}
+            \sum_{i=1}^{m}p_{ij}y_{i}&=&\sum_{r=1}^{s}(cov_j^r-cov_j^{r+1})\cdot \frac{c_r}{cov_r^r}\\
+            &\leq& c_j\sum_{r=1}^{s}\frac{cov_j^r-cov_j^{r+1}}{cov_j^r}\\
+            &=&c_j\sum_{r=1}^s\frac{cov_j^r-cov_j^{r+1}}{cov_j^r}\\
+            &\leq& c_j\sum_{r=1}^s\frac{\lfloor cov_j^r + 1\rfloor - \lfloor cov_j^{r+1}\rfloor}{\lfloor cov_j^r + 1\rfloor} \\
+            &=&c_j\sum_{r=1}^s \sum_{l=\lfloor cov_j^{r+1} +1\rfloor}^{\lfloor cov_j^r +1\rfloor} \frac{1}{cov_j^r}\\
+            &\leq& c_j\sum_{r=1}^s \sum_{l=\lfloor cov_j^{r+1} +1\rfloor}^{\lfloor cov_j^r +1\rfloor} \frac{1}{l}\\
+            &=&c_jH(\lfloor cov_j^1 +1\rfloor)-c_jH(\lfloor cov_j^s+1\rfloor)\\
+            &\leq& c_jH(\lfloor cov_j^1+1\rfloor)\\
+        \end{eqnarray*}
+        %\end{flushleft}
+    \end{pot}
+\end{thm}
+
+\textbf{Time Complexity.} The time complexity of MaxMargin consists of two components, namely the cost of building the initial feasible solution and the cost of searching the answer in $Q$. Suppose that the height of the LIR-tree is $l$. Thus, there are $n = \frac{|O|}{2^{l-1}}$ objects in each leaf node on average. As discussed earlier, the relevant objects in a nearest leaf node need to be organized in ascending order of their cost distances, and then added into $FS$. In the worst case, the time complexity of building the feasible solution is $O(nlogn)$. As with \cite{cao2015efficient}, we assume that there are $m$ relevant objects to $q$. That is, the number of entries (i.e., the objects and nodes) in the priority queue $Q$ is $O(m)$. Given that the entry $e$ may be reinserted into $Q$ in MaxMargin, in the worst case each entry $e$ will be reinserted into $Q$ at most $O(m)$ times. Thus, there are at most $O(m^2)$ iterations before the threshold constraint is satisfied. In each iteration, the major overhead comes from reinserting $e$ into the ordered $Q$, which costs $O(logm)$. Therefore, the time complexity of searching the answer is $O(m^2logm)$. As a result, the worst-case time complexity of MaxMargin is $O(nlogn+m^2logm)$.
+
+\section{Empirical Study}
+%EMPIRICAL STUDY
+We conduct experiments over synthetic and real datasets to evaluate the performance of our proposed algorithms. We specify the experimental setup in Section 6.1, and report the results in Sections 6.2 and 6.3.
+
+\begin{figure}
+\begin{minipage}[t]{.5\linewidth}
+\centering
+\captionof{table}{Properties of real datasets}
+\begin{tabular}{|l|l|l|}
+\hline
+\quad \quad Property &  \quad BT & \quad GN\\
+\hline
+\# of objects & 298,346 & 977,302\\
+\hline
+\# of keywords & 748,162 & 5,286,498\\
+\hline
+\# of distinct keywords & 58,367 & 116,466\\
+\hline
+\end{tabular}
+
+\label{T3}
+\end{minipage}%
+\begin{minipage}[t]{.5\linewidth}
+\centering
+\captionof{table}{Parameter settings}
+\begin{tabular}{|l|l|}
+\hline
+Parameter & \quad \quad \quad \quad Range \\
+\hline
+\textit{DS} ($10^5$) & 0.1, \textbf{1}, 3, 5, 7, 9\\
+\hline
+\textit{TK} & 50, 100, 150, 200, 250, \textbf{300} \\
+\hline
+\textit{QK} & 2, \textbf{3}, 4, 5, 6, 7 \\
+\hline
+\textit{TS} & 0.1, 0.2, \textbf{0.3}, 0.4, 0.5, 0.6 \\
+\hline
+\textit{KD} & 3, \textbf{4}, 5, 6, 7, 8 \\
+\hline
+\end{tabular}
+\label{T4}
+\end{minipage}
+\end{figure}
+
+
+\subsection{Experimental Setup}
+\textbf{Algorithms.} In the study of the LCSK query processing, we implement the state-of-the-art approximate algorithm SUM-A \cite{cao2015efficient, cao2011collective}, and compare it with MaxMargin. To be fair, we consider the modified version of SUM-A, which is based on the LIR-tree and can better match our settings. In addition, we consider MergeList as a comparison for evaluating the effectiveness of approximate algorithms.
+
+All algorithms were implemented in C/C\texttt{++} and run in Windows 7 System on an Intel(R) Core(TM) i5-4590 CPU@3.30 GHz with 8GB RAM. Both KHT and LIR-tree are disk-resident, and the page size is set to 4 MB by default.
+
+\begin{figure}[b] \centering
+    \subfigure[Running time] { \label{DSa}
+    \includegraphics[width=2.5in,height=1.8in]{DST}
+    }
+    \subfigure[Appro. ratio] { \label{DSb}
+    \includegraphics[width=2.5in,height=1.8in]{DSA}
+    }
+\caption{Effect of \textit{DS} on synthetic datasets}
+\label{F8}
+\end{figure}
+
+\textbf{Datasets and queries.} We deploy five synthetic and two real datasets in the experiments. Specifically, each synthetic dataset consists of three types of datasets following the uniform, random and zipf distributions. Table \ref{T3} presents the properties of real datasets, namely BT \cite{li2014efficiently} and GN \cite{cao2015efficient}. BT is extracted from OpenStreetMap and all points fall into the rectangle [(-11.1, 49.6),(2.1,62.5)]. Each pair of values (e.g., (-11.1,49.6)) corresponds to a coordinate of the form $($\textit{latitude, longitude}$)$. The first coordinate corresponds to the bottom-left corner of the rectangle, and the second corresponds to the up-right corner. Each object in BT consists of a location and a set of keywords. GN is extracted from the U.S. Board on Geographic Names (geonames.usgs.gov). Similarly, each object is associated with a location and a textual description. We randomly generate the \textit{cost} and \textit{level vector} for the objects in the underlying datasets. Without loss of generality, we assume that the cost is in the range of $(0,1)$. In addition, we assume the level ranges from 1 to 5. For example, all hotels can be classified into five categories based on the level of their services. Actually, this is not as restrictive as it seems, and the range can be extended to any scope.
+
+As illustrated in Table \ref{T4}, we focus on measuring the impact of five parameters: (1) \textit{data size} (\textit{DS}); (2) \textit{the total number of distinct keywords in the spatial database} (\textit{TK}); (3) \textit{the number of keywords associated with each object} (\textit{KD}); (4) \textit{the number of query keywords} (\textit{QK}); (5) \textit{the threshold of q, i.e., $q.\theta$} (\textit{TS})}. All the default values are marked in bold in Table \ref{T4}. We study all these parameters on synthetic datasets, but only study \textit{QK} and \textit{TS} on real datasets because other parameters (e.g., \textit{TK}) are fixed in real datasets.
+
+For each workload, we randomly generate 20 queries based on the parameter settings in Table \ref{T4}. In synthetic datasets, we generate the query location ($q.\ell$) and keywords ($q.\omega$) randomly for each query $q$. In real datasets, however, a large number of the keywords are \textit{rare}. That is, few objects contain them in their textual descriptions. Furthermore, these keywords are rarely considered as the query keywords by users. Motivated by these observations, we discard the keywords associated with at most 50 objects in the datasets from consideration. Then, we generate the query keywords randomly with the remaining keywords for each query $q$. The performance metrics that we measure are the response time and approximation ratio, and the results are computed by averaging the performance of 20 queries.
+
+\begin{figure}[t] \centering
+    \subfigure[Running time] { \label{TKa}
+    \includegraphics[width=2.5in,height=1.8in]{TKT}
+    }
+    \subfigure[Appro. ratio] { \label{TKb}
+    \includegraphics[width=2.5in,height=1.8in]{TKA}
+    }
+\caption{Effect of \textit{TK} on synthetic datasets}
+\label{F9}
+\end{figure}
+
+\begin{figure}[t] \centering
+    \subfigure[Running time] { \label{QKa}
+    \includegraphics[width=2.5in,height=1.8in]{QKT}
+    }
+    \subfigure[Appro. ratio] { \label{QKb}
+    \includegraphics[width=2.5in,height=1.8in]{QKA}
+    }
+\caption{Effect of \textit{QK} on synthetic datasets}
+\label{F31}
+\end{figure}
+
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{TSa}
+    \includegraphics[width=2.5in,height=1.8in]{TST}
+    }
+    \subfigure[Appro. ratio] { \label{TSb}
+    \includegraphics[width=2.5in,height=1.8in]{TSA}
+    }
+\caption{Effect of \textit{TS} on synthetic datasets}
+\label{F32}
+\end{figure}
+
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{KDa}
+    \includegraphics[width=2.5in,height=1.8in]{KDT}
+    }
+    \subfigure[Appro. ratio] { \label{KDb}
+    \includegraphics[width=2.5in,height=1.8in]{KDA}
+    }
+\caption{Effect of \textit{KD} on synthetic datasets}
+\label{F10}
+\end{figure}
+
+\subsection{Results on Synthetic Datasets}
+We evaluate the overall performance of algorithms with three types of datasets, and report the average response time $($\textit{URZA\_T}$)$ and average approximation ratio $($\textit{URZA\_R}$)$, where $\textit{URZA\_T}=\frac{T_u+T_r+T_z}{3}, \textit{URZA\_R}=\frac{R_u+R_r+R_z}{3}$. We denote by $T_u, T_r, T_z$ and $R_u, R_r, R_z$ the response time and approximation ratio for uniform, random and zipf datasets, respectively.
+
+
+
+\textbf{\textit{Effect of DS}}. Fig. \ref{F8}(a) shows that the response time of all algorithms increases as \textit{DS} becomes larger. This is because that much more relevant objects are required to be explored. Specifically, MaxMargin runs several orders of magnitude faster than SUM-A, which is largely due to the two optimizing strategies used by MaxMargin. We present the approximation ratio of algorithms in Fig. \ref{F8}(b), and denote by the curve $y = 1$ the approximation ratio of MergeList. Though both SUM-A and MaxMargin are based on the greedy strategy in \cite{chvatal1979greedy}, SUM-A achieves a little bit better performance than MaxMargin in terms of the accuracy. This might be due to the different strategies used to select the current optimal entry.
+
+
+\textbf{\textit{Effect of TK}}. When \textit{TK} varies from 50 to 300, the experimental results are shown in Fig. \ref{F9}. When \textit{TK} increases, the response time of all algorithms decreases, as shown in Fig. \ref{F9}(a). The reason behind is that the number of relevant objects, namely $|RO_q|$, becomes smaller when \textit{TK} becomes larger. As for the accuracy, we notice that SUM-A and MaxMargin have the same performance in most cases in Fig. \ref{F9}(b), and both of them achieve good accuracy bounded by the upper bound 1.2.
+
+
+
+\textbf{\textit{Effect of QK}}. The experimental results of algorithms when varying \textit{QK} are shown in Fig. \ref{F31}. When \textit{QK} increases, the response time of the two approximate algorithms increases slightly, whereas the performance of MergeList degrades especially when \textit{QK} varies from 3 to 5. Note that, we assign the default value of \textit{KD} as 4 in Table \ref{T4}. Thus, when \textit{QK} is less than 4, all query keywords may be covered by a single object. In contrast, when \textit{QK} is greater than 4, much more objects are required to be explored for satisfying the threshold constraint. Consistently, we observe that the approximate algorithms achieve bad accuracy when \textit{QK} varies from 3 to 5 (see Fig. \ref{F31}(b)). Also, we know that the first selected optimal entry by the greedy strategy affects the subsequent selections, and thus has much effect on the accuracy. When much more objects are explored (when \textit{QK} varies from 3 to 5), the first selected entry may not be optimal from the global view, which affects the whole performance of accuracy. Actually, this is an inherent limitation of the greedy strategy.
+
+
+
+\begin{figure}[tb] \centering
+    \subfigure[SUM-A] { \label{SUMA-T}
+    \includegraphics[width=2in,height=1.8in]{SUMKDT}
+    }
+    \subfigure[MaxMargin] { \label{MAXMARGIN-T}
+    \includegraphics[width=2in,height=1.8in]{MAXKDT}
+    }
+    \subfigure[MergeList] { \label{MERGELIST-T}
+    \includegraphics[width=2in,height=1.8in]{MEGKDT}
+    }
+\caption{Running time on different datasets}
+\label{F11}
+\end{figure}
+
+\begin{figure}[tb] \centering
+    \subfigure[SUM-A] { \label{SUMA-R}
+    \includegraphics[width=2in,height=1.8in]{SUMKDA}
+    }
+    \subfigure[MaxMargin] { \label{MAXMARGIN-R}
+    \includegraphics[width=2in,height=1.8in]{MAXKDA}
+    }
+    \subfigure[MergeList] { \label{MERGELIST-R}
+    \includegraphics[width=2in,height=1.8in]{MEGKDA}
+    }
+\caption{Approximation ratio on different datasets}
+\label{F12}
+\end{figure}
+
+\textbf{\textit{Effect of TS}}. We measure the impact of \textit{TS} in this experiment, and present the results in Fig. \ref{F32}. As expected, the response time of all algorithms increases as \textit{TS} increases. This is because much more objects are explored before the threshold constraint is satisfied. Specifically, the response time of approximate algorithms increases almost linearly with \textit{TS}, whereas MergeList increases rapidly. We observe that the accuracy of approximate algorithms fluctuates in Fig. \ref{F32}(b), denoting that \textit{TS} has much impact on the accuracy of algorithms. This is because it determines the cardinality of the result set $G$.
+
+
+
+\textbf{\textit{Effect of KD}}. As shown in Fig. \ref{F10}(a), the response time of all algorithms increases almost linearly with \textit{KD}. The reason behind is that the response time is proportional to the number of relevant objects, i.e., $|RO_q|$, which is often proportional to \textit{KD}. One might wonder why does not MergeList increase rapidly in this experiment. This is largely due to the two pruning strategies used by MergeList. We also notice that MaxMargin runs much faster than SUM-A, which demonstrates the effectiveness of our proposed two optimizing strategies, namely BBS and TUS. The results in Fig. \ref{F10}(b) show that both two approximate algorithms produce the near-optimal answers.
+
+
+
+
+\begin{figure}[tb] \centering
+    \subfigure[LIR-tree construction time] { \label{BT}
+    \includegraphics[width=2.5in,height=1.8in]{BT}
+    }
+    \subfigure[Number of relevant objects] { \label{ROQ}
+    \includegraphics[width=2.5in,height=1.8in]{ROQ}
+    }
+\caption{The performance on synthetic datasets}
+\label{F33}
+\end{figure}
+
+In the following, we delve more into details of the performance of algorithms on different types of datasets. Figs. \ref{F11} and \ref{F12} present the response time and accuracy of algorithms w.r.t. \textit{KD}. Specifically, we study the performance of algorithms on different types of datasets, namely uniform, random and zipf. It is shown that all algorithms are sensitive to zipf datasets. This is because the distribution of zipf datasets has much effect on the pruning power of algorithms. We observe that the uniform datasets achieve more stable accuracy. This is largely due to the distribution of the datasets. Fig. \ref{F33}(a) shows the LIR-tree index construction time by varying \textit{DS}. In general, the construction time increases almost linearly with \textit{DS} for all three types of datasets. In addition, Fig. \ref{F33}(b) shows the number of relevant objects when increasing \textit{QK}. Similarly, the number of relevant objects is proportional to the number of query keywords.
+
+
+\subsection{Results on Real Datasets}
+We proceed to study the performance of algorithms on BT and GN. As noted earlier, other parameters (e.g., \textit{TK}) are fixed in real datasets, thus we only evaluate the effect of \textit{QK} and \textit{TS}.
+
+\subsubsection{Evaluation on BT}
+
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{BTQKa}
+    \includegraphics[width=2.5in,height=1.8in]{BTQKT}
+    }
+    \subfigure[Appro. ratio] { \label{BTQKb}
+    \includegraphics[width=2.5in,height=1.8in]{BTQKA}
+    }
+\caption{Effect of \textit{QK} on BT}
+\label{F13}
+\end{figure}
+
+\textbf{\textit{Effect of QK}}. As shown in Fig. \ref{F13}(a), MaxMargin and SUM-A outperform MergeList by several orders of magnitude in terms of the response time, especially when \textit{QK} is greater than 3. We notice that, the average number of associated keywords with each object in BT is 3 (see Table \ref{T3}). When \textit{QK} is greater than 3, MergeList may need to explore much more objects for satisfying the threshold constraint, which incurs prohibitive computation cost. In this case, approximate algorithms can prune the search space using LIR-tree. In real datasets, the number of keywords associated with each object is limited, which reduces the number of relevant objects and thus degrades the performance of optimizing strategies used by MaxMargin. As shown in Fig. \ref{F13}(b), two approximate algorithms perform well in terms of accuracy. Specifically, the approximation ratio of them is close to 1, and they can produce the near-optimal answer in most cases.
+
+
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{TSa}
+    \includegraphics[width=2.5in,height=1.8in]{BTTST}
+    }
+    \subfigure[Appro. ratio] { \label{TSb}
+    \includegraphics[width=2.5in,height=1.8in]{BTTSA}
+    }
+\caption{Effect of \textit{TS} on BT}
+\label{F14}
+\end{figure}
+
+\textbf{\textit{Effect of TS}}. As shown in Fig. \ref{F14}(a), approximate algorithms are reasonably efficient when \textit{TS} varies from 0.1 to 0.6. However, the response time of MergeList increases dramatically. This is because much more objects in $RO_q$ are required to be explored for finding the answer. With the help of LIR-tree, the response time of approximate algorithms increases almost linearly with \textit{TS}. Fig. \ref{F14}(b) shows that MaxMargin achieves the same accuracy as SUM-A in most cases, whereas its performance fluctuates. Specifically, when \textit{TS}=0.2, the approximate algorithms achieve the worst accuracy. As noted earlier, there are five levels, and thus the weight for each level is 0.2 on average. When the threshold is greater than 0.2, more objects are required to satisfy the threshold constraint. This reveals the similar findings as with Fig. \ref{F31}(b), and thus can be explained with the similar reasons.
+
+\subsubsection{Evaluation on GN}
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{UQKa}
+    \includegraphics[width=2.5in,height=1.8in]{GNQKT}
+    }
+    \subfigure[Appro. ratio] { \label{UQKb}
+    \includegraphics[width=2.5in,height=1.8in]{GNQKA}
+    }
+\caption{Effect of \textit{QK} on GN}
+\label{F15}
+\end{figure}
+
+\textbf{\textit{Effect of QK}}. In this experiment, we study the performance of algorithms on GN by varying \textit{QK}. As shown in Fig. \ref{F15}(a), the response time of approximate algorithms increases almost linearly w.r.t. \textit{QK}, which is similar with the results achieved by BT. This demonstrates the effectiveness of LIR-tree. Also, we observe that all algorithms have much worse response time compared with BT, because the data size of GN is larger than BT. Fig. \ref{F15}(b) shows that the accuracy fluctuates when \textit{QK} varies from 3 to 6. This is similar with the observation in Fig. \ref{F31}(b), and thus can be explained with the same reasons.
+
+\begin{figure}[tb] \centering
+    \subfigure[Running time] { \label{UTSa}
+    \includegraphics[width=2.5in,height=1.8in]{GNTST}
+    }
+    \subfigure[Appro. ratio] { \label{UTSb}
+    \includegraphics[width=2.5in,height=1.8in]{GNTSA}
+    }
+\caption{Effect of \textit{TS} on GN}
+\label{F16}
+\end{figure}
+
+\textbf{\textit{Effect of TS}}. Fig. \ref{F16} shows the performance of algorithms as \textit{TS} increases. Specifically, Fig. \ref{F16}(a) presents similar results with Fig. \ref{F14}(a). We observe that MergeList has a better response time compared with the results of BT. The reason behind is that, with much more relevant objects in GN, it is more convenient for MergeList to find objects with a greater coverage weight. Fig. \ref{F16}(b) shows that both two approximate algorithms achieve good accuracy, and return the near-optimal answer in most cases. Besides, the accuracy is more stable compared with that in Fig. \ref{F14}(b), it is probably because there are much more keywords associated with each object in GN compared with that in BT, and thus can conveniently find the desired object in each of the iterations from the global view.
+
+
+\section{Conclusions and Future Work}
+%\input{CONCLUSIONS_AND_FUTURE_WORK}
+%CONCLUSIONS AND FUTURE WORK
+In this paper, we study a novel query type called LCSK, which takes into account the keyword level. We prove that the LCSK query is NP-hard by reducing the weighted cover set problem to it. We then propose two algorithms to answering this query exactly and approximately. The exact algorithm, namely MergeList, answers the query by searching the candidate space progressively with two pruning strategies, which is based on the KHT index structure. To be scalable to large datasets, we propose an approximate algorithm called MaxMargin. It finds the answer by traversing down the LIR-tree using the best-first strategy. Moreover, two optimizing strategies, namely the branch and bound strategy and the triggered update strategy are developed to improve the query performance. Extensive experiments on real and synthetic datasets are conducted to evaluate the performance of our proposed algorithms. As verified by the experiments that MaxMargin outperforms the state-of-the-art approximate algorithm, namely SUM-A, by several orders of magnitude with the near-optimal answer.
+
+Future work includes: (1) studying the LCSK query in the dynamic environment with the moving objects; (2) capturing the importance of objects using multiple feature vectors in the LCSK query. Furthermore, we can utilize the spatial keyword search techniques to help the studies in related research fields such as path planning \cite{arora2005role,zhu2015global}, spatial and social information processing and understanding \cite{li2015topic,li2014measuring,zhou2015linear}, and network information processing \cite{huang2015top,Li2015Triangle,Zhao2016Distance}.
+
+
+\section*{Acknowledgements} We are grateful to anonymous reviewers for their constructive comments on this work. This work was supported by National Program on Key Basic Research Project (973 Program, No.2012CB725305), the NSFC (61428204), the Scientific Innovation Act of STCSM (No.13511504200, 15JC1402400), National Science and Technology Supporting plan (2015BAH45F00, 2015BAH45F01), the public key plan of Zhejiang Province (2014C23005), the cultural relic protection science and technology project of Zhejiang Province.
+
+\section*{References}
+%\input{REFERENCES}
+\bibliographystyle{abbrv}
+\bibliography{reference}
+\end{document}

@@ -1,0 +1,59 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{axis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=3,
+xlabel=QK,
+ylabel= Number of relevant objects,
+xtick={2,3,4,5,6,7}
+]
+\addplot table[x=k,y=time] {
+k time
+2	2673.3
+3	3993.6
+4	5332.05
+5	6675.35
+6	7996.4
+7	9293.05
+};
+\addplot table[x=k,y=time] {
+k time
+2	2682.05
+3	3999.65
+4	5322
+5	6657.3
+6	7996.65
+7	9396.55
+};
+\addplot table[x=k,y=time] {
+k time
+2	3012.1
+3	3721.9
+4	5107.55
+5	5233.9
+6	7914.15
+7	8835.35
+};
+
+\legend{Random,Uniform,Zipf}
+\end{axis}
+\end{tikzpicture}
+\end{document}

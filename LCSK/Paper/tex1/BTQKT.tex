@@ -1,0 +1,59 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{semilogyaxis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=3,
+xlabel= Number of query keywords,
+ylabel= URZA\_T (ms),
+xtick={2,3,4,5,6,7}
+]
+\addplot table[x=k,y=time] {
+k time
+2	2.8
+3	4.2
+4	6
+5	7.4
+6	7.8
+7	8.2
+};
+\addplot table[x=k,y=time] {
+k time
+2	8.8
+3	14
+4	20
+5	26
+6	32
+7	43
+};
+\addplot table[x=k,y=time] {
+k time
+2	68.8
+3	223
+4	3579.2
+5	19920
+6	155715
+7	298827
+};
+
+\legend{MaxMargin,SUM-A,MergeList}
+\end{semilogyaxis}
+\end{tikzpicture}
+\end{document}

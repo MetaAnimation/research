@@ -1,0 +1,60 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{semilogyaxis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=3,
+xlabel=QK,
+ylabel= URZA\_T (ms),
+xtick={2,3,4,5,6,7},
+ytick={10,100,1000,10000,100000,1000000,10000000,100000000,1000000000,1000000000}
+]
+\addplot table[x=k,y=time] {
+k time
+2	3.362179487
+3	3.85
+4	6.636111111
+5	9.277272727
+6	9.625
+7	13.90833333
+};
+\addplot table[x=k,y=time] {
+k time
+2	135.6955128
+3	163
+4	171.5027778
+5	212.5159091
+6	233.775
+7	360.6
+};
+\addplot table[x=k,y=time] {
+k time
+2	518.8782051
+3	1302.675
+4	28830.74444
+5	448277.8023
+6	801321.8464
+7	1382444.65
+};
+
+\legend{MaxMargin,SUM-A,MergeList}
+\end{semilogyaxis}
+\end{tikzpicture}
+\end{document}

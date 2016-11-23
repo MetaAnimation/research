@@ -1,0 +1,60 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{axis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=4,
+xlabel= Number of object keywords,
+ylabel= Approximation ratio,
+ymax = 1.3,
+xtick={3,4,5,6,7,8}
+]
+\addplot table[x=k,y=time] {
+k time
+3	1.123413891
+4	1.040724872
+5	1.077508426
+6	1.117853824
+7	1.053655578
+8	1.091461776
+};
+\addplot table[x=k,y=time] {
+k time
+3	1.09349527
+4	1.0864126
+5	1.069224135
+6	1.074122717
+7	1.075140059
+8	1.073644508
+};
+\addplot table[x=k,y=time] {
+k time
+3	1.044251931
+4	1.071681955
+5	1.103175651
+6	1.054612398
+7	1.050818462
+8	1.092745651
+};
+
+\legend{Random,Uniform,Zipf}
+\end{axis}
+\end{tikzpicture}
+\end{document}

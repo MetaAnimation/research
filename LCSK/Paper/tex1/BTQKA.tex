@@ -1,0 +1,60 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{axis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=4,
+xlabel= Number of query keywords,,
+ylabel= URZA\_R,
+ymax = 1.3,
+xtick={2,3,4,5,6,7}
+]
+\addplot table[x=k,y=time] {
+k time
+2	1
+3	1.002831933
+4	1.036067857
+5	1
+6	1.019922779
+7	1.028932653
+};
+\addplot table[x=k,y=time] {
+k time
+2	1
+3	1.002831933
+4	1.026067857
+5	1
+6	1.019922779
+7	1.018932653
+};
+\addplot table[x=k,y=time] {
+k time
+2   1
+3	1
+4	1
+5	1
+6	1
+7	1
+};
+
+\legend{MaxMargin,SUM-A,MergeList}
+\end{axis}
+\end{tikzpicture}
+\end{document}

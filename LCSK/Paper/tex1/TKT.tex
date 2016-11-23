@@ -1,0 +1,59 @@
+% Preamble: \pgfplotsset{width=7cm,compat=1.11}
+\documentclass[a4paper]{article}
+% for dvipdfm:
+%\def\pgfsysdriver{pgfsys-dvipdfm.def}
+\usepackage{pgfplots}
+
+\begin{document}
+\begin{tikzpicture}
+\pgfplotsset{every axis legend/.append style={
+at={(0.5,1.1)},
+anchor=south,
+line width=1.5pt,
+tick style={line width=1.5pt}}},
+\begin{semilogyaxis} [cycle list={%
+{blue,mark=halfdiamond*},
+{red,mark=|},
+{brown!60!black,
+mark options={fill=brown!40},
+mark=otimes*},
+{black,mark=o},
+},
+line width=1.5pt,
+legend columns=3,
+xlabel= Total number of distinct keywords,
+ylabel= URZA\_T (ms),
+xtick={50,100,150,200,250,300}
+]
+\addplot table[x=k,y=time] {
+k time
+50	6.28030303
+100	5.946637427
+150	5.158508159
+200	6.380639098
+250	6.040644541
+300	6.18907563
+};
+\addplot table[x=k,y=time] {
+k time
+50	879.1109626
+100	656.41423
+150	658.3954116
+200	561.6425439
+250	358.2277537
+300	356.9285714
+};
+\addplot table[x=k,y=time] {
+k time
+50	4142.203298
+100	3160.905945
+150	2956.353944
+200	2077.152256
+250	1950.783069
+300	1484.017857
+};
+
+\legend{MaxMargin,SUM-A,MergeList}
+\end{semilogyaxis}
+\end{tikzpicture}
+\end{document}
